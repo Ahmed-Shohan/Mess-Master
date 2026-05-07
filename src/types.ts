@@ -49,12 +49,20 @@ export interface GuestRecord {
   dinner: boolean;
 }
 
+export interface RiceDeposit {
+  id: string;
+  memberId: string;
+  amount: number; // in pots
+  timestamp: number;
+}
+
 export interface AppState {
   members: Member[];
   mealRecords: DailyMealRecord[];
   transactions: Transaction[];
   sharedExpenses: SharedExpense[];
   guestRecords: GuestRecord[];
+  riceDeposits: RiceDeposit[];
 }
 
 export const MEAL_COSTS = {

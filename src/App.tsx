@@ -45,8 +45,8 @@ const formatDate = (dateStr: string) => {
 };
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'members' | 'meals' | 'finances' | 'reports' | 'extras' | 'more' | 'guestMeals'>('dashboard');
-  const [moreActiveView, setMoreActiveView] = useState<'none' | 'reports' | 'extras' | 'guestMeals'>('none');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'members' | 'meals' | 'finances' | 'reports' | 'extras' | 'more' | 'guestMeals' | 'rice'>('dashboard');
+  const [moreActiveView, setMoreActiveView] = useState<'none' | 'reports' | 'extras' | 'guestMeals' | 'rice'>('none');
   const [state, setState] = useState<AppState>(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
@@ -55,6 +55,7 @@ export default function App() {
         ...parsed,
         sharedExpenses: parsed.sharedExpenses || [],
         guestRecords: parsed.guestRecords || [],
+        riceDeposits: parsed.riceDeposits || [],
       };
     }
     return {
@@ -63,6 +64,7 @@ export default function App() {
       transactions: [],
       sharedExpenses: [],
       guestRecords: [],
+      riceDeposits: [],
     };
   });
 
@@ -164,6 +166,27 @@ export default function App() {
     }));
   };
 
+  const addRiceDeposit = (amount: number, memberId: string) => {
+    const newDeposit = {
+      id: crypto.randomUUID(),
+      amount,
+      memberId,
+      timestamp: Date.now(),
+    };
+    setState(s => ({ ...s, riceDeposits: [newDeposit, ...s.riceDeposits] }));
+  };
+
+  const removeRiceDeposit = (id: string) => {
+    setState(s => ({ ...s, riceDeposits: s.riceDeposits.filter(d => d.id !== id) }));
+  };
+
+  const updateRiceDeposit = (id: string, updates: { amount: number, memberId: string }) => {
+    setState(s => ({
+      ...s,
+      riceDeposits: s.riceDeposits.map(d => d.id === id ? { ...d, ...updates } : d)
+    }));
+  };
+
   const updateTransaction = (id: string, updates: Partial<Transaction>) => {
     setState(s => ({
       ...s,
@@ -234,12 +257,16 @@ export default function App() {
       }
     });
 
+    const totalRiceDeposited = state.riceDeposits.reduce((sum, d) => sum + d.amount, 0);
+
     return { 
       totalDeposits, 
       totalExpenses, 
       totalSharedExpenses,
       totalMeals, 
       totalRice, 
+      totalRiceDeposited,
+      riceStock: totalRiceDeposited - totalRice,
       balance: totalDeposits - totalExpenses - totalSharedExpenses 
     };
   }, [state]);
@@ -386,6 +413,7 @@ export default function App() {
                     <MetricCard title="মোট অতিরিক্ত খরচ" amount={formatCurrency(totals.totalSharedExpenses)} trendColor="text-purple-600" />
                     <MetricCard title="মোট জমা" amount={formatCurrency(totals.totalDeposits)} trendColor="text-indigo-600" />
                     <MetricCard title="মোট খাবার" amount={`${totals.totalMeals} বার`} trendColor="text-amber-600" />
+                    <MetricCard title="চালের স্টক" amount={`${totals.riceStock.toFixed(1)} পট`} trendColor={totals.riceStock < 10 ? "text-rose-600" : "text-emerald-600"} />
                   </div>
 
                   <div className="bg-white rounded-xl border border-slate-200/60 shadow-sm overflow-hidden">
@@ -497,6 +525,15 @@ export default function App() {
                 </div>
               )}
 
+              {activeTab === 'rice' && (
+                <div className="space-y-6">
+                  <button onClick={() => setActiveTab('more')} className="lg:hidden flex items-center gap-2 text-indigo-600 font-bold text-sm mb-4">
+                    <ChevronLeft className="w-4 h-4" /> ফিরে যান
+                  </button>
+                  <RiceTracker state={state} onAdd={addRiceDeposit} onRemove={removeRiceDeposit} onUpdate={updateRiceDeposit} totals={totals} />
+                </div>
+              )}
+
               {activeTab === 'more' && (
                 <motion.section 
                   key="more-menu"
@@ -527,6 +564,14 @@ export default function App() {
                     title="গেস্ট মিল ম্যানেজমেন্ট"
                     desc="মেম্বারদের অধীনস্থ গেস্ট মিলের হিসাব"
                     color="orange"
+                  />
+
+                  <MoreMenuButton 
+                    onClick={() => setActiveTab('rice')}
+                    icon={<UtensilsCrossed className="w-8 h-8" />}
+                    title="চালের হিসাব"
+                    desc="চালের স্টক ও জমা নেওয়ার হিসাব সিস্টেম"
+                    color="emerald"
                   />
                 </motion.section>
               )}
@@ -761,6 +806,105 @@ function GuestMealTracker({ state, onAdd, onRemove, onUpdate }: { state: AppStat
               </div>
             </div>
           ))}
+        </div>
+      </div>
+    </motion.section>
+  );
+}
+
+function RiceTracker({ state, onAdd, onRemove, onUpdate, totals }: { state: AppState, onAdd: (amount: number, mId: string) => void, onRemove: (id: string) => void, onUpdate: (id: string, updates: { amount: number, memberId: string }) => void, totals: any }) {
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editData, setEditData] = useState({ amount: 0, memberId: '' });
+
+  return (
+    <motion.section initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
+      <div className="grid grid-cols-2 gap-3">
+        <StatsCard label="মোট জমা চাল" value={`${totals.totalRiceDeposited.toFixed(1)} পট`} color="emerald" />
+        <StatsCard label="ভোক্ত চাল" value={`${totals.totalRice.toFixed(1)} পট`} color="orange" />
+      </div>
+
+      <div className="bg-white p-5 rounded-xl border border-slate-200/60 shadow-sm">
+        <h2 className="text-xs font-bold text-slate-800 mb-4 uppercase tracking-tighter">চাল জমা নিন</h2>
+        <form 
+          onSubmit={(e) => {
+            e.preventDefault();
+            const form = e.target as HTMLFormElement;
+            const amount = Number((form.elements.namedItem('amount') as HTMLInputElement).value);
+            const mId = (form.elements.namedItem('memberId') as HTMLSelectElement).value;
+            onAdd(amount, mId);
+            form.reset();
+          }}
+          className="grid grid-cols-1 sm:grid-cols-3 gap-3"
+        >
+          <select name="memberId" className="bg-slate-50 border border-slate-100 rounded-lg p-2 text-xs font-semibold outline-none focus:border-indigo-500" required>
+            <option value="">মেম্বার...</option>
+            {state.members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+          </select>
+          <input name="amount" type="number" placeholder="পট সংখ্যা" className="bg-slate-50 border border-slate-100 rounded-lg p-2 text-xs font-bold outline-none focus:border-indigo-500" required />
+          <button type="submit" className="bg-emerald-600 text-white py-2 rounded-lg text-xs font-bold sm:col-span-1 hover:bg-emerald-700 transition-colors">জমা করুন</button>
+        </form>
+      </div>
+
+      <div className="bg-white rounded-xl border border-slate-200/60 shadow-sm overflow-hidden">
+        <div className="p-3 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
+          <span>চাল জমা দেওয়ার তালিকা</span>
+          <span className={totals.riceStock < 10 ? 'text-rose-500' : 'text-emerald-500'}>স্টক: {totals.riceStock.toFixed(1)} পট</span>
+        </div>
+        <div className="divide-y divide-slate-100">
+          {state.riceDeposits.map(d => {
+            const isEditing = editingId === d.id;
+            const member = state.members.find(m => m.id === d.memberId);
+            return (
+              <div key={d.id} className="p-3 hover:bg-slate-50/50 transition-colors">
+                {isEditing ? (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-2">
+                      <select 
+                         value={editData.memberId} 
+                         onChange={ev => setEditData({...editData, memberId: ev.target.value})}
+                         className="bg-white border border-indigo-200 rounded-lg p-2 text-xs font-semibold"
+                       >
+                         {state.members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                       </select>
+                       <input 
+                         type="number" 
+                         value={editData.amount} 
+                         onChange={ev => setEditData({...editData, amount: Number(ev.target.value)})}
+                         className="bg-white border border-indigo-200 rounded-lg p-2 text-xs font-bold"
+                       />
+                    </div>
+                    <div className="flex gap-2">
+                       <button onClick={() => { onUpdate(d.id, editData); setEditingId(null); }} className="flex-1 py-1.5 bg-emerald-600 text-white text-[10px] font-bold rounded">আপডেট</button>
+                       <button onClick={() => setEditingId(null)} className="flex-1 py-1.5 bg-slate-100 text-slate-600 text-[10px] font-bold rounded">বাতিল</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                        <UtensilsCrossed className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-slate-700">{member?.name}</p>
+                        <p className="text-[9px] text-slate-400 font-medium">{new Date(d.timestamp).toLocaleDateString('bn-BD')}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <p className="text-xs font-black text-emerald-600">+{d.amount} পট</p>
+                      <div className="flex gap-2">
+                        <button onClick={() => { setEditingId(d.id); setEditData({ amount: d.amount, memberId: d.memberId }); }} className="text-slate-300 hover:text-indigo-500 transition-colors">
+                          <Plus className="w-4 h-4 rotate-45 scale-75" />
+                        </button>
+                        <button onClick={() => window.confirm('মুছতে চান?') && onRemove(d.id)} className="text-slate-300 hover:text-rose-500">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
     </motion.section>
