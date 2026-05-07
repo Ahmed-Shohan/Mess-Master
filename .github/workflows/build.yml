@@ -39,6 +39,36 @@ jobs:
           EOF
           npx cap add android || true
           npx cap sync android
+      - name: Set App Icon and Splash Screen
+        run: |
+          sudo apt-get install -y imagemagick
+          RES_DIR="android/app/src/main/res"
+
+          # icon.png নেই, তাই ImageMagick দিয়ে তৈরি করো
+          convert -size 512x512 xc:"#1565C0" \
+            -fill "#1E88E5" -draw "roundrectangle 30,30 482,482 60,60" \
+            -fill white -font DejaVu-Sans-Bold -pointsize 100 \
+            -gravity Center -annotate +0-60 "MESS" \
+            -fill "#90CAF9" -font DejaVu-Sans-Bold -pointsize 70 \
+            -gravity Center -annotate +0+60 "MASTER" \
+            icon.png
+
+          rm -rf $RES_DIR/mipmap-anydpi-v26
+          mkdir -p $RES_DIR/mipmap-mdpi $RES_DIR/mipmap-hdpi $RES_DIR/mipmap-xhdpi $RES_DIR/mipmap-xxhdpi $RES_DIR/mipmap-xxxhdpi
+          convert icon.png -resize 48x48   $RES_DIR/mipmap-mdpi/ic_launcher.png
+          convert icon.png -resize 72x72   $RES_DIR/mipmap-hdpi/ic_launcher.png
+          convert icon.png -resize 96x96   $RES_DIR/mipmap-xhdpi/ic_launcher.png
+          convert icon.png -resize 144x144 $RES_DIR/mipmap-xxhdpi/ic_launcher.png
+          convert icon.png -resize 192x192 $RES_DIR/mipmap-xxxhdpi/ic_launcher.png
+          convert icon.png -resize 48x48   $RES_DIR/mipmap-mdpi/ic_launcher_round.png
+          convert icon.png -resize 72x72   $RES_DIR/mipmap-hdpi/ic_launcher_round.png
+          convert icon.png -resize 96x96   $RES_DIR/mipmap-xhdpi/ic_launcher_round.png
+          convert icon.png -resize 144x144 $RES_DIR/mipmap-xxhdpi/ic_launcher_round.png
+          convert icon.png -resize 192x192 $RES_DIR/mipmap-xxxhdpi/ic_launcher_round.png
+          mkdir -p $RES_DIR/drawable $RES_DIR/drawable-land-hdpi $RES_DIR/drawable-port-hdpi
+          convert icon.png -resize 512x512 $RES_DIR/drawable/splash.png
+          convert icon.png -resize 512x512 $RES_DIR/drawable-land-hdpi/splash.png
+          convert icon.png -resize 512x512 $RES_DIR/drawable-port-hdpi/splash.png
       - name: Build Android APK
         run: |
           cd android
